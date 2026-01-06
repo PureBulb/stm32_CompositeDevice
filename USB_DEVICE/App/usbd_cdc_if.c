@@ -134,14 +134,7 @@ static int8_t CDC_Init_FS(void);
 static int8_t CDC_DeInit_FS(void);
 static int8_t CDC_Control_FS(uint8_t cmd, uint8_t* pbuf, uint16_t length);
 static int8_t CDC_Receive_FS(uint8_t* pbuf, uint32_t* Len);
-static int8_t CDC_Parse_Configuration(USBD_HandleTypeDef* pdev,
-                                      USBD_CDC_ItfTypeDef* fops,
-                                      uint8_t* cfgData, uint16_t length);
-static int8_t CDC_Parse_Interface(USBD_HandleTypeDef* pdev,
-                                  USBD_CDC_ItfTypeDef* fops,
-                                  uint8_t* interfaceData, uint8_t* endpointNum);
-static int8_t CDC_Parse_Endpoint(USBD_CDC_ItfTypeDef* fops,
-                                 uint8_t* endpointData);
+
 /* USER CODE BEGIN PRIVATE_FUNCTIONS_DECLARATION */
 
 /* USER CODE END PRIVATE_FUNCTIONS_DECLARATION */
@@ -155,7 +148,6 @@ USBD_CDC_ItfTypeDef USBD_Interface_fops_FS = {
     CDC_DeInit_FS,
     CDC_Control_FS,
     CDC_Receive_FS,
-    CDC_Parse_Configuration,
     {},
     {},
     0,
@@ -317,82 +309,7 @@ uint8_t CDC_Transmit_FS(uint8_t* Buf, uint16_t Len)
 }
 
 /* USER CODE BEGIN PRIVATE_FUNCTIONS_IMPLEMENTATION */
-int8_t CDC_Parse_Configuration(USBD_HandleTypeDef* pdev,
-                               USBD_CDC_ItfTypeDef* fops, uint8_t* cfgData,
-                               uint16_t length)
-{
-    uint8_t seek = 0;
-    uint8_t ret = USBD_OK;
-    USBD_CDC_ItfTypeDef* succRegFops = NULL;
-    uint8_t endpointNum = 0;
-    while (seek < length)
-    {
-        uint8_t descLen = cfgData[seek];
-        uint8_t descType = cfgData[seek + 1];
-        switch (descType)
-        {
-            case USB_DESC_TYPE_INTERFACE:
-                succRegFops = NULL;
-                ret = CDC_Parse_Interface(pdev, fops, &cfgData[seek],
-                                          &endpointNum);
-                succRegFops = (ret == USBD_OK) ? fops : succRegFops;
-                seek += descLen;
-                break;
-            case USB_DESC_TYPE_ENDPOINT:
-                if (endpointNum != 0)
-                    ret = CDC_Parse_Endpoint(succRegFops, &cfgData[seek]);
-                seek += descLen;
-                endpointNum--;
-                if (endpointNum == 0) succRegFops = NULL;
-                break;
-            default:
-                seek += descLen;
-                break;
-        }
-        if (ret != USBD_OK) break;
-    }
-    return ret;
-}
-int8_t CDC_Parse_Interface(USBD_HandleTypeDef* pdev, USBD_CDC_ItfTypeDef* fops,
-                           uint8_t* interfaceData, uint8_t* endpointNum)
-{
-    *endpointNum = 0;
-    int8_t isFind = 0;
-    uint8_t interfaceClassType = interfaceData[5];
-    for (uint8_t i = 0; i < INTERFACE_MAX_EP_NUM; i++)
-    {
-        if (fops->interfaceClassType[i] != 0 &&
-            fops->interfaceClassType[i] == interfaceClassType)
-        {
-            isFind = 1;
-            break;
-        }
-    }
-    if (isFind)
-    {
-        fops->interfaceNumbers[fops->interfaceSize++] =
-            interfaceData[2];
-        *endpointNum = interfaceData[4];
-        // Found CDC Interface
-        if (fops->isRegistered != 0u)
-        {
-            return USBD_OK;
-        }
-        fops->isRegistered = 1;
-        pdev->pUserData[pdev->interfaceSize++] = fops;
 
-        return USBD_OK;
-    }
-    return USBD_FAIL;
-}
-int8_t CDC_Parse_Endpoint(USBD_CDC_ItfTypeDef* fops, uint8_t* endpointData)
-{
-    if (NULL == fops) return USBD_OK;
-    if (fops->endpointSize >= INTERFACE_MAX_EP_NUM) return USBD_FAIL;
-    fops->interfaceEpAddr[fops->endpointSize++] = endpointData[2];
-    fops->interfaceEpAttr[fops->endpointSize - 1] = endpointData[3];
-    return USBD_OK;
-}
 /* USER CODE END PRIVATE_FUNCTIONS_IMPLEMENTATION */
 
 /**

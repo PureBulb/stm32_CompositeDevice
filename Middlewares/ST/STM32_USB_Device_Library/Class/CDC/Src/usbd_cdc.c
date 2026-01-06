@@ -130,7 +130,7 @@ uint8_t* USBD_CDC_GetDeviceQualifierDescriptor(uint16_t* length);
 int8_t USBD_CDC_GetInterfaceIndexByEpNum(USBD_HandleTypeDef* pdev,
                                          uint8_t ep_addr);
 int8_t USBD_CDC_GetInterfaceIndexByIfNum(USBD_HandleTypeDef* pdev,
-                                        uint8_t ep_addr);
+                                         uint8_t ep_addr);
 /* USB Standard Device Descriptor */
 __ALIGN_BEGIN static uint8_t
     USBD_CDC_DeviceQualifierDesc[USB_LEN_DEV_QUALIFIER_DESC] __ALIGN_END = {
@@ -460,6 +460,14 @@ __ALIGN_BEGIN uint8_t
  * @param  cfgidx: Configuration index
  * @retval status
  */
+static int8_t CDC_Parse_Configuration(USBD_HandleTypeDef* pdev,
+                                      USBD_CDC_ItfTypeDef* fops,
+                                      uint8_t* cfgData, uint16_t length);
+static int8_t CDC_Parse_Interface(USBD_HandleTypeDef* pdev,
+                                  USBD_CDC_ItfTypeDef* fops,
+                                  uint8_t* interfaceData, uint8_t* endpointNum);
+static int8_t CDC_Parse_Endpoint(USBD_CDC_ItfTypeDef* fops,
+                                 uint8_t* endpointData);
 static uint8_t USBD_CDC_Init(USBD_HandleTypeDef* pdev, uint8_t cfgidx)
 {
     uint8_t ret = 0U;
@@ -607,38 +615,40 @@ static uint8_t USBD_CDC_DeInit(USBD_HandleTypeDef* pdev, uint8_t cfgidx)
  * @param  req: usb requests
  * @retval status
  */
-static int8_t CDC_GetInterfaceIndexFromSetup(USBD_HandleTypeDef *pdev,
-    USBD_SetupReqTypedef *req)
+static int8_t CDC_GetInterfaceIndexFromSetup(USBD_HandleTypeDef* pdev,
+                                             USBD_SetupReqTypedef* req)
 {
-uint8_t recipient = req->bmRequest & 0x1F;   // 低 5 位 = Recipient
+    uint8_t recipient = req->bmRequest & 0x1F;  // 低 5 位 = Recipient
 
-switch (recipient)
-{
-case USB_REQ_RECIPIENT_INTERFACE: {
-uint8_t if_num = (uint8_t)(req->wIndex & 0xFF);
-return USBD_CDC_GetInterfaceIndexByIfNum(pdev, if_num);
-}
+    switch (recipient)
+    {
+        case USB_REQ_RECIPIENT_INTERFACE:
+        {
+            uint8_t if_num = (uint8_t)(req->wIndex & 0xFF);
+            return USBD_CDC_GetInterfaceIndexByIfNum(pdev, if_num);
+        }
 
-case USB_REQ_RECIPIENT_ENDPOINT: {
-uint8_t ep_addr = (uint8_t)(req->wIndex & 0xFF);
-return USBD_CDC_GetInterfaceIndexByEpNum(pdev, ep_addr);
-}
+        case USB_REQ_RECIPIENT_ENDPOINT:
+        {
+            uint8_t ep_addr = (uint8_t)(req->wIndex & 0xFF);
+            return USBD_CDC_GetInterfaceIndexByEpNum(pdev, ep_addr);
+        }
 
-default:
-// 既不是 interface 也不是 endpoint，就没有对应 CDC interface
-return -1;
-}
+        default:
+            // 既不是 interface 也不是 endpoint，就没有对应 CDC interface
+            return -1;
+    }
 }
 static uint8_t USBD_CDC_Setup(USBD_HandleTypeDef* pdev,
                               USBD_SetupReqTypedef* req)
 {
-
     int8_t interfaceIndex = CDC_GetInterfaceIndexFromSetup(pdev, req);
     if (interfaceIndex < 0)
     {
         return USBD_FAIL;
     }
-    USBD_CDC_HandleTypeDef* hcdc = (USBD_CDC_HandleTypeDef*)pdev->pClassData[interfaceIndex];
+    USBD_CDC_HandleTypeDef* hcdc =
+        (USBD_CDC_HandleTypeDef*)pdev->pClassData[interfaceIndex];
     uint8_t ifalt = 0U;
     uint16_t status_info = 0U;
     uint8_t ret = USBD_OK;
@@ -777,12 +787,13 @@ static uint8_t USBD_CDC_DataIn(USBD_HandleTypeDef* pdev, uint8_t epnum)
  */
 static uint8_t USBD_CDC_DataOut(USBD_HandleTypeDef* pdev, uint8_t epnum)
 {
-      int8_t interfaceIndex = USBD_CDC_GetInterfaceIndexByEpNum(pdev, epnum);
+    int8_t interfaceIndex = USBD_CDC_GetInterfaceIndexByEpNum(pdev, epnum);
     if (interfaceIndex < 0)
     {
         return USBD_FAIL;
     }
-    USBD_CDC_HandleTypeDef* hcdc = (USBD_CDC_HandleTypeDef*)pdev->pClassData[interfaceIndex];
+    USBD_CDC_HandleTypeDef* hcdc =
+        (USBD_CDC_HandleTypeDef*)pdev->pClassData[interfaceIndex];
 
     /* Get the received data length */
     hcdc->RxLength = USBD_LL_GetRxDataSize(pdev, epnum);
@@ -815,7 +826,8 @@ static uint8_t USBD_CDC_EP0_RxReady(USBD_HandleTypeDef* pdev, uint8_t epnum)
     {
         return USBD_FAIL;
     }
-    USBD_CDC_HandleTypeDef* hcdc = (USBD_CDC_HandleTypeDef*)pdev->pClassData[interfaceIndex];
+    USBD_CDC_HandleTypeDef* hcdc =
+        (USBD_CDC_HandleTypeDef*)pdev->pClassData[interfaceIndex];
 
     if ((pdev->pUserData[interfaceIndex] != NULL) && (hcdc->CmdOpCode != 0xFFU))
     {
@@ -892,7 +904,7 @@ uint8_t USBD_CDC_RegisterInterface(USBD_HandleTypeDef* pdev,
     if (fops != NULL)
     {
         uint16_t configDesctiptorLen;
-        fops->CDC_Parse_Configuration(
+        CDC_Parse_Configuration(
             pdev, fops,
             pdev->pClass->GetFSConfigDescriptor(&configDesctiptorLen),
             configDesctiptorLen);
@@ -947,7 +959,8 @@ uint8_t USBD_CDC_TransmitPacket(USBD_HandleTypeDef* pdev)
     {
         return USBD_FAIL;
     }
-    USBD_CDC_HandleTypeDef* hcdc = (USBD_CDC_HandleTypeDef*)pdev->pClassData[interfaceIndex];
+    USBD_CDC_HandleTypeDef* hcdc =
+        (USBD_CDC_HandleTypeDef*)pdev->pClassData[interfaceIndex];
 
     if (pdev->pClassData[interfaceIndex] != NULL)
     {
@@ -989,7 +1002,8 @@ uint8_t USBD_CDC_ReceivePacket(USBD_HandleTypeDef* pdev)
     {
         return USBD_FAIL;
     }
-    USBD_CDC_HandleTypeDef* hcdc = (USBD_CDC_HandleTypeDef*)pdev->pClassData[interfaceIndex];
+    USBD_CDC_HandleTypeDef* hcdc =
+        (USBD_CDC_HandleTypeDef*)pdev->pClassData[interfaceIndex];
     /* Suspend or Resume USB Out process */
     if (pdev->pClassData[interfaceIndex] != NULL)
     {
@@ -1034,19 +1048,97 @@ int8_t USBD_CDC_GetInterfaceIndexByEpNum(USBD_HandleTypeDef* pdev,
     return -1;
 }
 int8_t USBD_CDC_GetInterfaceIndexByIfNum(USBD_HandleTypeDef* pdev,
-    uint8_t if_num)
+                                         uint8_t if_num)
 {
-    for (int8_t i = 0; i < pdev->interfaceSize; i++){
+    for (int8_t i = 0; i < pdev->interfaceSize; i++)
+    {
         USBD_CDC_ItfTypeDef* fops = pdev->pUserData[i];
-        for (int8_t j = 0; j<fops->interfaceSize; j++){
+        for (int8_t j = 0; j < fops->interfaceSize; j++)
+        {
             uint8_t interfaceNum = fops->interfaceNumbers[j];
-            if (interfaceNum == if_num){
+            if (interfaceNum == if_num)
+            {
                 return i;
             }
-        
         }
     }
     return -1;
+}
+
+int8_t CDC_Parse_Configuration(USBD_HandleTypeDef* pdev,
+                               USBD_CDC_ItfTypeDef* fops, uint8_t* cfgData,
+                               uint16_t length)
+{
+    uint8_t seek = 0;
+    uint8_t ret = USBD_OK;
+    USBD_CDC_ItfTypeDef* succRegFops = NULL;
+    uint8_t endpointNum = 0;
+    while (seek < length)
+    {
+        uint8_t descLen = cfgData[seek];
+        uint8_t descType = cfgData[seek + 1];
+        switch (descType)
+        {
+            case USB_DESC_TYPE_INTERFACE:
+                succRegFops = NULL;
+                ret = CDC_Parse_Interface(pdev, fops, &cfgData[seek],
+                                          &endpointNum);
+                succRegFops = (ret == USBD_OK) ? fops : succRegFops;
+                seek += descLen;
+                break;
+            case USB_DESC_TYPE_ENDPOINT:
+                if (endpointNum != 0)
+                    ret = CDC_Parse_Endpoint(succRegFops, &cfgData[seek]);
+                seek += descLen;
+                endpointNum--;
+                if (endpointNum == 0) succRegFops = NULL;
+                break;
+            default:
+                seek += descLen;
+                break;
+        }
+        if (ret != USBD_OK) break;
+    }
+    return ret;
+}
+int8_t CDC_Parse_Interface(USBD_HandleTypeDef* pdev, USBD_CDC_ItfTypeDef* fops,
+                           uint8_t* interfaceData, uint8_t* endpointNum)
+{
+    *endpointNum = 0;
+    int8_t isFind = 0;
+    uint8_t interfaceClassType = interfaceData[5];
+    for (uint8_t i = 0; i < INTERFACE_MAX_EP_NUM; i++)
+    {
+        if (fops->interfaceClassType[i] != 0 &&
+            fops->interfaceClassType[i] == interfaceClassType)
+        {
+            isFind = 1;
+            break;
+        }
+    }
+    if (isFind)
+    {
+        fops->interfaceNumbers[fops->interfaceSize++] = interfaceData[2];
+        *endpointNum = interfaceData[4];
+        // Found CDC Interface
+        if (fops->isRegistered != 0u)
+        {
+            return USBD_OK;
+        }
+        fops->isRegistered = 1;
+        pdev->pUserData[pdev->interfaceSize++] = fops;
+
+        return USBD_OK;
+    }
+    return USBD_FAIL;
+}
+int8_t CDC_Parse_Endpoint(USBD_CDC_ItfTypeDef* fops, uint8_t* endpointData)
+{
+    if (NULL == fops) return USBD_OK;
+    if (fops->endpointSize >= INTERFACE_MAX_EP_NUM) return USBD_FAIL;
+    fops->interfaceEpAddr[fops->endpointSize++] = endpointData[2];
+    fops->interfaceEpAttr[fops->endpointSize - 1] = endpointData[3];
+    return USBD_OK;
 }
 /**
  * @}
