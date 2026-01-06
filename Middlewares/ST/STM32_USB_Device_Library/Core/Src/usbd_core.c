@@ -320,7 +320,7 @@ USBD_StatusTypeDef USBD_LL_DataOutStage(USBD_HandleTypeDef *pdev,
         if ((pdev->pClass->EP0_RxReady != NULL) &&
             (pdev->dev_state == USBD_STATE_CONFIGURED))
         {
-          pdev->pClass->EP0_RxReady(pdev);
+          pdev->pClass->EP0_RxReady(pdev, epnum);
         }
         USBD_CtlSendStatus(pdev);
       }
@@ -459,7 +459,7 @@ USBD_StatusTypeDef USBD_LL_Reset(USBD_HandleTypeDef *pdev)
   pdev->dev_config = 0U;
   pdev->dev_remote_wakeup = 0U;
 
-  if (pdev->pClassData)
+  if (pdev->pClassData[0])
   {
     pdev->pClass->DeInit(pdev, (uint8_t)pdev->dev_config);
   }

@@ -22,6 +22,7 @@
 #define __USB_CDC_H
 
 #include <stdint.h>
+#include "usbd_conf.h"
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -83,7 +84,7 @@ extern "C" {
   * @}
   */
 
-#define  INTERFACE_MAX_EP_NUM 2
+#define  INTERFACE_MAX_EP_NUM 3
 /** @defgroup USBD_CORE_Exported_TypesDefinitions
   * @{
   */
@@ -105,11 +106,14 @@ typedef struct _USBD_CDC_Itf
   int8_t (* DeInit)(void);
   int8_t (* Control)(uint8_t cmd, uint8_t *pbuf, uint16_t length);
   int8_t (* Receive)(uint8_t *Buf, uint32_t *Len);
-  int8_t (* CDC_Parse_Configuration)(USBD_HandleTypeDef* pdev,USBD_CDC_ItfTypeDef* fops,uint8_t* cfgData, uint16_t length);
+  int8_t (* CDC_Parse_Configuration)(USBD_HandleTypeDef* pdev,struct _USBD_CDC_Itf* fops,uint8_t* cfgData, uint16_t length);
   uint8_t interfaceEpAddr[INTERFACE_MAX_EP_NUM];
   uint8_t interfaceEpAttr[INTERFACE_MAX_EP_NUM];
   uint8_t endpointSize;
-  uint8_t interfaceClassType;
+  uint8_t interfaceClassType[INTERFACE_MAX_EP_NUM];
+  uint8_t interfaceNumbers[USBD_MAX_NUM_INTERFACES];
+  uint8_t interfaceSize;
+  int8_t isRegistered;
 } USBD_CDC_ItfTypeDef;
 
 

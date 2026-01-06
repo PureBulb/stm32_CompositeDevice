@@ -175,7 +175,7 @@ typedef struct _Device_cb
   /* Control Endpoints*/
   uint8_t (*Setup)(struct _USBD_HandleTypeDef *pdev, USBD_SetupReqTypedef  *req);
   uint8_t (*EP0_TxSent)(struct _USBD_HandleTypeDef *pdev);
-  uint8_t (*EP0_RxReady)(struct _USBD_HandleTypeDef *pdev);
+  uint8_t (*EP0_RxReady)(struct _USBD_HandleTypeDef *pdev, uint8_t epnum);
   /* Class Specific Endpoints*/
   uint8_t (*DataIn)(struct _USBD_HandleTypeDef *pdev, uint8_t epnum);
   uint8_t (*DataOut)(struct _USBD_HandleTypeDef *pdev, uint8_t epnum);
