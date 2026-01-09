@@ -62,7 +62,7 @@
   */
 
 /*---------- -----------*/
-#define USBD_MAX_NUM_INTERFACES     1
+#define USBD_MAX_NUM_INTERFACES     2
 /*---------- -----------*/
 #define USBD_MAX_NUM_CONFIGURATION     1
 /*---------- -----------*/
@@ -144,6 +144,7 @@ void USBD_static_free(void *p);
   * @{
   */
 #define USBD_CUSTOM_HID_REPORT_DESC_SIZE     51
+#define USBD_CUSTOMHID_OUTREPORT_BUF_SIZE     2
 
 /**
   * @}

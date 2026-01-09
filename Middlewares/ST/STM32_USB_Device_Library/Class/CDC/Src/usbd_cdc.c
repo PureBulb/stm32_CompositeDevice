@@ -66,6 +66,7 @@ EndBSPDependencies */
 #include "usbd_cdc.h"
 
 #include <stdint.h>
+#include <stdio.h>
 
 #include "stm32f1xx_ll_usb.h"
 #include "usbd_ctlreq.h"
@@ -178,7 +179,7 @@ __ALIGN_BEGIN uint8_t USBD_CDC_CfgHSDesc[USB_CDC_CONFIG_DESC_SIZ] __ALIGN_END = 
     0x09, /* bLength: Configuration Descriptor size */
     USB_DESC_TYPE_CONFIGURATION, /* bDescriptorType: Configuration */
     USB_CDC_CONFIG_DESC_SIZ, /* wTotalLength:no of returned bytes */
-    0x00, 0x02, /* bNumInterfaces: 2 interface */
+    0x00, 0x03, /* bNumInterfaces: 2 interface */
     0x01, /* bConfigurationValue: Configuration value */
     0x00, /* iConfiguration: Index of string descriptor describing the
              configuration */
@@ -271,7 +272,7 @@ __ALIGN_BEGIN uint8_t USBD_CDC_CfgFSDesc[USB_CDC_CONFIG_DESC_SIZ] __ALIGN_END = 
     0x09, /* bLength: Configuration Descriptor size */
     USB_DESC_TYPE_CONFIGURATION, /* bDescriptorType: Configuration */
     USB_CDC_CONFIG_DESC_SIZ, /* wTotalLength:no of returned bytes */
-    0x00, 0x02, /* bNumInterfaces: 2 interface */
+    0x00, 0x03, /* bNumInterfaces: 2 interface */
     0x01, /* bConfigurationValue: Configuration value */
     0x00, /* iConfiguration: Index of string descriptor describing the
              configuration */
@@ -279,14 +280,14 @@ __ALIGN_BEGIN uint8_t USBD_CDC_CfgFSDesc[USB_CDC_CONFIG_DESC_SIZ] __ALIGN_END = 
     0x32, /* MaxPower 0 mA */
 
     /*---------------------------------------------------------------------------*/
-    0x08,        // bLength
-    0x0B,        // bDescriptorType = IAD (0x0B)
-    0x00,        // bFirstInterface: 这个 CDC 从 interface 0 开始
-    0x02,        // bInterfaceCount: 一共占 2 个接口 (控制 + 数据)
-    0x02,        // bFunctionClass: CDC
-    0x02,        // bFunctionSubClass: Abstract Control
-    0x01,        // bFunctionProtocol: AT commands
-    0x00,         // iFunction
+    0x08,  // bLength
+    0x0B,  // bDescriptorType = IAD (0x0B)
+    0x00,  // bFirstInterface: 这个 CDC 从 interface 0 开始
+    0x02,  // bInterfaceCount: 一共占 2 个接口 (控制 + 数据)
+    0x02,  // bFunctionClass: CDC
+    0x02,  // bFunctionSubClass: Abstract Control
+    0x01,  // bFunctionProtocol: AT commands
+    0x00,  // iFunction
     /*Interface Descriptor */
     0x09, /* bLength: Interface Descriptor size */
     USB_DESC_TYPE_INTERFACE, /* bDescriptorType: Interface */
@@ -385,7 +386,7 @@ __ALIGN_BEGIN uint8_t USBD_CDC_CfgFSDesc[USB_CDC_CONFIG_DESC_SIZ] __ALIGN_END = 
                                          descriptor*/
     0x00,
     /******************** Descriptor of Custom HID endpoints
-       ********************/
+     ********************/
     /* 27 */
     0x07, /*bLength: Endpoint Descriptor size*/
     USB_DESC_TYPE_ENDPOINT, /*bDescriptorType:*/
@@ -717,31 +718,63 @@ static uint8_t USBD_CDC_Setup(USBD_HandleTypeDef* pdev,
     switch (req->bmRequest & USB_REQ_TYPE_MASK)
     {
         case USB_REQ_TYPE_CLASS:
-            if (req->wLength)
+            switch (req->bRequest)
             {
-                if (req->bmRequest & 0x80U)
-                {
-                    ((USBD_CDC_ItfTypeDef*)pdev->pUserData[interfaceIndex])
-                        ->Control(req->bRequest, (uint8_t*)(void*)hcdc->data,
-                                  req->wLength);
+                case CUSTOM_HID_REQ_SET_PROTOCOL:
+                    hcdc->Protocol = (uint8_t)(req->wValue);
+                    break;
 
-                    USBD_CtlSendData(pdev, (uint8_t*)(void*)hcdc->data,
-                                     req->wLength);
-                }
-                else
-                {
-                    hcdc->CmdOpCode = req->bRequest;
-                    hcdc->CmdLength = (uint8_t)req->wLength;
+                case CUSTOM_HID_REQ_GET_PROTOCOL:
+                    USBD_CtlSendData(pdev, (uint8_t*)(void*)&hcdc->Protocol,
+                                     1U);
+                    break;
 
-                    USBD_CtlPrepareRx(pdev, (uint8_t*)(void*)hcdc->data,
-                                      req->wLength);
-                }
+                case CUSTOM_HID_REQ_SET_IDLE:
+                    hcdc->IdleState = (uint8_t)(req->wValue >> 8);
+                    // printf("1");
+                    break;
+
+                case CUSTOM_HID_REQ_GET_IDLE:
+                    USBD_CtlSendData(pdev, (uint8_t*)(void*)&hcdc->IdleState,
+                                     1U);
+                    break;
+
+                case CUSTOM_HID_REQ_SET_REPORT:
+                    hcdc->IsReportAvailable = 1U;
+                    USBD_CtlPrepareRx(pdev, hcdc->Report_buf, req->wLength);
+                    break;
+
+                default:
+                    if (req->wLength)
+                    {
+                        if (req->bmRequest & 0x80U)
+                        {
+                            ((USBD_CDC_ItfTypeDef*)
+                                 pdev->pUserData[interfaceIndex])
+                                ->Control(req->bRequest,
+                                          (uint8_t*)(void*)hcdc->data,
+                                          req->wLength);
+
+                            USBD_CtlSendData(pdev, (uint8_t*)(void*)hcdc->data,
+                                             req->wLength);
+                        }
+                        else
+                        {
+                            hcdc->CmdOpCode = req->bRequest;
+                            hcdc->CmdLength = (uint8_t)req->wLength;
+
+                            USBD_CtlPrepareRx(pdev, (uint8_t*)(void*)hcdc->data,
+                                              req->wLength);
+                        }
+                    }
+                    else
+                    {
+                        ((USBD_CDC_ItfTypeDef*)pdev->pUserData[interfaceIndex])
+                            ->Control(req->bRequest, (uint8_t*)(void*)req, 0U);
+                    }
+                    break;
             }
-            else
-            {
-                ((USBD_CDC_ItfTypeDef*)pdev->pUserData[interfaceIndex])
-                    ->Control(req->bRequest, (uint8_t*)(void*)req, 0U);
-            }
+
             break;
 
         case USB_REQ_TYPE_STANDARD:
@@ -779,34 +812,35 @@ static uint8_t USBD_CDC_Setup(USBD_HandleTypeDef* pdev,
                         ret = USBD_FAIL;
                     }
                     break;
+                case USB_REQ_GET_DESCRIPTOR:
+                {
+                    uint16_t len = 0U;
+                    uint8_t* pbuf = NULL;
+                    if (req->wValue >> 8 == CUSTOM_HID_REPORT_DESC)
+                    {
+                        len =
+                            MIN(USBD_CUSTOM_HID_REPORT_DESC_SIZE, req->wLength);
+                        pbuf = ((USBD_CDC_ItfTypeDef*)pdev->pUserData[interfaceIndex])->pReport;
+                    }
+                    else
+                    {
+                        if (req->wValue >> 8 == CUSTOM_HID_DESCRIPTOR_TYPE)
+                        {
+                            pbuf = USBD_CUSTOM_HID_Desc;
+                            len = MIN(USB_CUSTOM_HID_DESC_SIZ, req->wLength);
+                        }
+                    }
 
+                    USBD_CtlSendData(pdev, pbuf, len);
+                    break;
+                }
                 default:
                     USBD_CtlError(pdev, req);
                     ret = USBD_FAIL;
                     break;
             }
             break;
-        case USB_REQ_GET_DESCRIPTOR:
-        {
-            uint16_t len = 0U;
-            uint8_t* pbuf = NULL;
-            if (req->wValue >> 8 == CUSTOM_HID_REPORT_DESC)
-            {
-                len = MIN(USBD_CUSTOM_HID_REPORT_DESC_SIZE, req->wLength);
-                pbuf = ((USBD_CDC_ItfTypeDef*)pdev->pUserData)->pReport;
-            }
-            else
-            {
-                if (req->wValue >> 8 == CUSTOM_HID_DESCRIPTOR_TYPE)
-                {
-                    pbuf = USBD_CUSTOM_HID_Desc;
-                    len = MIN(USB_CUSTOM_HID_DESC_SIZ, req->wLength);
-                }
-            }
 
-            USBD_CtlSendData(pdev, pbuf, len);
-            break;
-        }
         default:
             USBD_CtlError(pdev, req);
             ret = USBD_FAIL;
@@ -1162,10 +1196,12 @@ int8_t CDC_Parse_Configuration(USBD_HandleTypeDef* pdev,
         {
             case USB_DESC_TYPE_INTERFACE:
                 succRegFops = NULL;
+                endpointNum = 0;
                 ret = CDC_Parse_Interface(pdev, fops, &cfgData[seek],
                                           &endpointNum);
                 succRegFops = (ret == USBD_OK) ? fops : succRegFops;
                 seek += descLen;
+                ret = USBD_OK;  // continue
                 break;
             case USB_DESC_TYPE_ENDPOINT:
                 if (endpointNum != 0)

@@ -98,6 +98,14 @@ extern "C"
      */
 
 #define INTERFACE_MAX_EP_NUM          3
+#define CUSTOM_HID_REQ_SET_PROTOCOL          0x0BU
+#define CUSTOM_HID_REQ_GET_PROTOCOL          0x03U
+
+#define CUSTOM_HID_REQ_SET_IDLE              0x0AU
+#define CUSTOM_HID_REQ_GET_IDLE              0x02U
+
+#define CUSTOM_HID_REQ_SET_REPORT            0x09U
+#define CUSTOM_HID_REQ_GET_REPORT            0x01U
     /** @defgroup USBD_CORE_Exported_TypesDefinitions
      * @{
      */
@@ -142,6 +150,13 @@ extern "C"
 
         __IO uint32_t TxState;
         __IO uint32_t RxState;
+        uint8_t              Report_buf[USBD_CUSTOMHID_OUTREPORT_BUF_SIZE];
+  
+        uint32_t             Protocol;
+        uint32_t             IdleState;
+        uint32_t             AltSetting;
+        uint32_t             IsReportAvailable;
+
     } USBD_CDC_HandleTypeDef;
 
     /** @defgroup USBD_CORE_Exported_Macros
