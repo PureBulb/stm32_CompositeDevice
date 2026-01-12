@@ -91,33 +91,30 @@
 /** Usb HID report descriptor. */
 __ALIGN_BEGIN static uint8_t CUSTOM_HID_ReportDesc_FS[USBD_CUSTOM_HID_REPORT_DESC_SIZE] __ALIGN_END =
 {
-  /* USER CODE BEGIN 0 */
-  0x05, 0x01,        // Usage Page (Generic Desktop Ctrls)
-  0x09, 0x02,        // Usage (Mouse)
-  0xA1, 0x01,        // Collection (Application)
-  0x09, 0x01,        //   Usage (Pointer)
-  0xA1, 0x00,        //   Collection (Physical)
-  0x95, 0x03,        //     Report Count (3)
-  0x75, 0x01,        //     Report Size (1)
-  0x05, 0x09,        //     Usage Page (Button)
-  0x19, 0x01,        //     Usage Minimum (0x01)
-  0x29, 0x03,        //     Usage Maximum (0x03)
-  0x15, 0x00,        //     Logical Minimum (0)
-  0x25, 0x01,        //     Logical Maximum (1)
-  0x81, 0x02,        //     Input (Data,Var,Abs,No Wrap,Linear,Preferred State,No Null Position)
-  0x95, 0x01,        //     Report Count (1)
-  0x75, 0x05,        //     Report Size (5)
-  0x81, 0x03,        //     Input (Const,Var,Abs,No Wrap,Linear,Preferred State,No Null Position)
-  0x95, 0x03,        //     Report Count (3)
-  0x75, 0x08,        //     Report Size (8)
-  0x05, 0x01,        //     Usage Page (Generic Desktop Ctrls)
-  0x09, 0x30,        //     Usage (X)
-  0x09, 0x31,        //     Usage (Y)
-  0x09, 0x38,        //     Usage (Wheel)
-  0x15, 0x81,        //     Logical Minimum (-127)
-  0x25, 0x7F,        //     Logical Maximum (127)
-  0x81, 0x06,        //     Input (Data,Var,Rel,No Wrap,Linear,Preferred State,No Null Position)
-  0xC0,              //   End Collection
+  0x05, 0x01,                    // USAGE_PAGE (Generic Desktop)
+  0x09, 0x05,                    // USAGE (Game Pad)
+  0xa1, 0x01,                    // COLLECTION (Application)
+  0xa1, 0x00,                    //   COLLECTION (Physical)
+  0x05, 0x09,                    //     USAGE_PAGE (Button)
+  0x19, 0x01,                    //     USAGE_MINIMUM (Button 1)
+  0x29, 0x10,                    //     USAGE_MAXIMUM (Button 16)
+  0x15, 0x00,                    //     LOGICAL_MINIMUM (0)
+  0x25, 0x01,                    //     LOGICAL_MAXIMUM (1)
+  0x95, 0x10,                    //     REPORT_COUNT (16)
+  0x75, 0x01,                    //     REPORT_SIZE (1)
+  0x81, 0x02,                    //     INPUT (Data,Var,Abs)
+  0x05, 0x01,                    //     USAGE_PAGE (Generic Desktop)
+  0x09, 0x30,                    //     USAGE (X)
+  0x09, 0x31,                    //     USAGE (Y)
+  0x09, 0x32,                    //     Usage (Z)
+  0x09, 0x33,                    //     Usage (Rx)
+  0x15, 0x00,                    //     LOGICAL_MINIMUM (0)
+  0x26, 0xff, 0x00,              //     LOGICAL_MAXIMUM (255)
+  0x75, 0x08,                    //     REPORT_SIZE (8)
+  0x95, 0x04,                    //     REPORT_COUNT (4)
+  0x81, 0x02,                    //     INPUT (Data,Var,Abs)
+  0xc0,                          //     END_COLLECTION
+  0xc0                           // END_COLLECTION
 };
 
 /* USER CODE BEGIN PRIVATE_VARIABLES */

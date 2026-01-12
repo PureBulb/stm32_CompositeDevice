@@ -143,7 +143,7 @@ void USBD_static_free(void *p);
   * @brief Types.
   * @{
   */
-#define USBD_CUSTOM_HID_REPORT_DESC_SIZE     51
+#define USBD_CUSTOM_HID_REPORT_DESC_SIZE     47
 #define USBD_CUSTOMHID_OUTREPORT_BUF_SIZE     2
 
 /**
