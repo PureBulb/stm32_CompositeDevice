@@ -260,6 +260,7 @@ typedef struct _USBD_HandleTypeDef
   void                    *pUserData[USBD_MAX_NUM_INTERFACES];
   void                    *pData;
   int8_t              interfaceSize;
+  uint8_t             isReady;
 } USBD_HandleTypeDef;
 
 /**

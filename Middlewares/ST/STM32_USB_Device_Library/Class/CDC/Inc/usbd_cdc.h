@@ -50,7 +50,7 @@ extern "C"
 #define CDC_CMD_EP            0x82U /* EP2 for CDC commands */
 
 #define CUSTOM_HID_EPIN_ADDR  0x83U
-#define CUSTOM_HID_EPIN_SIZE  0x02U
+#define CUSTOM_HID_EPIN_SIZE  0x06U
 
 #define CUSTOM_HID_EPOUT_ADDR 0x02U
 #define CUSTOM_HID_EPOUT_SIZE 0x02U
@@ -70,7 +70,7 @@ extern "C"
 #define CDC_DATA_FS_MAX_PACKET_SIZE   64U /* Endpoint IN & OUT Packet size */
 #define CDC_CMD_PACKET_SIZE           8U /* Control Endpoint Packet size */
 
-#define USB_CDC_CONFIG_DESC_SIZ       107U
+#define USB_CDC_CONFIG_DESC_SIZ       115U
 #define CDC_DATA_HS_IN_PACKET_SIZE    CDC_DATA_HS_MAX_PACKET_SIZE
 #define CDC_DATA_HS_OUT_PACKET_SIZE   CDC_DATA_HS_MAX_PACKET_SIZE
 
@@ -106,6 +106,13 @@ extern "C"
 
 #define CUSTOM_HID_REQ_SET_REPORT            0x09U
 #define CUSTOM_HID_REQ_GET_REPORT            0x01U
+
+typedef enum
+{
+  CUSTOM_HID_IDLE = 0U,
+  CUSTOM_HID_BUSY,
+}
+CUSTOM_HID_StateTypeDef;
     /** @defgroup USBD_CORE_Exported_TypesDefinitions
      * @{
      */
@@ -150,6 +157,7 @@ extern "C"
 
         __IO uint32_t TxState;
         __IO uint32_t RxState;
+        CUSTOM_HID_StateTypeDef state;
         uint8_t              Report_buf[USBD_CUSTOMHID_OUTREPORT_BUF_SIZE];
   
         uint32_t             Protocol;
@@ -191,6 +199,8 @@ extern "C"
     uint8_t USBD_CDC_ReceivePacket(USBD_HandleTypeDef *pdev);
 
     uint8_t USBD_CDC_TransmitPacket(USBD_HandleTypeDef *pdev);
+    uint8_t USBD_CUSTOM_HID_SendReport(USBD_HandleTypeDef* pdev, uint8_t* report,
+        uint16_t len);
     /**
      * @}
      */

@@ -67,9 +67,11 @@ EndBSPDependencies */
 
 #include <stdint.h>
 #include <stdio.h>
+#include <string.h>
 
 #include "stm32f1xx_ll_usb.h"
 #include "usbd_ctlreq.h"
+#include "usbd_def.h"
 
 /** @addtogroup STM32_USB_DEVICE_LIBRARY
  * @{
@@ -364,6 +366,18 @@ __ALIGN_BEGIN uint8_t USBD_CDC_CfgFSDesc[USB_CDC_CONFIG_DESC_SIZ] __ALIGN_END = 
     LOBYTE(CDC_DATA_FS_MAX_PACKET_SIZE), /* wMaxPacketSize: */
     HIBYTE(CDC_DATA_FS_MAX_PACKET_SIZE),
     0x00, /* bInterval: ignore for Bulk transfer */
+    /**************************************************************** */
+    /*************************************功能1 HID键盘**************************************/
+    /*IAD描述符*/
+    0x08,   //bLength：IAD描述符大小 
+    0x0B,   //bDescriptorType：IAD描述符类型
+    0x02,   //bFirstInterface：功能1 HID键盘的第一个接口描述符是在总的配置描述符中的第几个从0开始数
+    0x01,   //bInferfaceCount：功能1 HID键盘有1个接口描述符
+    0x03,   //bFunctionClass：
+    0x00,   //bFunctionSubClass：
+    0x00,   //bFunctionProtocol：
+    0x00,   //iFunction：字符串描述中关于此设备的索引(个人理解是一个字符串描述符中有比如0~5是功能1的字符串，
+            //6~10是功能2的字符串,如果是功能2的话，此值为6)
     /************** Descriptor of CUSTOM HID interface ****************/
     0x09, /*bLength: Interface Descriptor size*/
     USB_DESC_TYPE_INTERFACE, /*bDescriptorType: Interface descriptor type*/
@@ -565,6 +579,10 @@ static uint8_t USBD_CDC_Init(USBD_HandleTypeDef* pdev, uint8_t cfgidx)
             {
                 uint8_t epAddr = fops->interfaceEpAddr[epIndex];
                 uint8_t epAttr = fops->interfaceEpAttr[epIndex];
+                if (epAddr == 0x00U || epAddr == 0x80)
+                {
+                    continue;
+                }
                 if ((epAddr & 0x80U) != 0U)
                 {  // IN endpoint
                     USBD_LL_OpenEP(pdev, epAddr, epAttr,
@@ -622,13 +640,21 @@ static uint8_t USBD_CDC_Init(USBD_HandleTypeDef* pdev, uint8_t cfgidx)
                     uint8_t epAddr = fops->interfaceEpAddr[epIdx];
                     if ((epAddr & 0x80U) == 0U)
                     {  // OUT endpoint
-                        USBD_LL_PrepareReceive(pdev, epAddr, hcdc->RxBuffer,
-                                               CDC_DATA_FS_OUT_PACKET_SIZE);
+                        if (epAddr == 1) {
+                            USBD_LL_PrepareReceive(pdev, epAddr, hcdc->RxBuffer,
+                                CDC_DATA_FS_OUT_PACKET_SIZE);
+                        }
+                        else if(epAddr == 2){
+                            USBD_LL_PrepareReceive(pdev, epAddr, hcdc->Report_buf,
+                                USBD_CUSTOMHID_OUTREPORT_BUF_SIZE);
+                        }
+                        
                     }
                 }
             }
         }
     }
+    pdev->isReady = 1;
     return ret;
 }
 
@@ -743,36 +769,49 @@ static uint8_t USBD_CDC_Setup(USBD_HandleTypeDef* pdev,
                     hcdc->IsReportAvailable = 1U;
                     USBD_CtlPrepareRx(pdev, hcdc->Report_buf, req->wLength);
                     break;
-
                 default:
-                    if (req->wLength)
+                    if (interfaceIndex == 0)
                     {
-                        if (req->bmRequest & 0x80U)
+                        if (req->wLength)
                         {
-                            ((USBD_CDC_ItfTypeDef*)
-                                 pdev->pUserData[interfaceIndex])
-                                ->Control(req->bRequest,
-                                          (uint8_t*)(void*)hcdc->data,
-                                          req->wLength);
+                            if (req->bmRequest & 0x80U)
+                            {
+                                ((USBD_CDC_ItfTypeDef*)
+                                     pdev->pUserData[interfaceIndex])
+                                    ->Control(req->bRequest,
+                                              (uint8_t*)(void*)hcdc->data,
+                                              req->wLength);
 
-                            USBD_CtlSendData(pdev, (uint8_t*)(void*)hcdc->data,
-                                             req->wLength);
+                                USBD_CtlSendData(pdev,
+                                                 (uint8_t*)(void*)hcdc->data,
+                                                 req->wLength);
+                            }
+                            else
+                            {
+                                hcdc->CmdOpCode = req->bRequest;
+                                hcdc->CmdLength = (uint8_t)req->wLength;
+
+                                USBD_CtlPrepareRx(pdev,
+                                                  (uint8_t*)(void*)hcdc->data,
+                                                  req->wLength);
+                            }
                         }
                         else
                         {
-                            hcdc->CmdOpCode = req->bRequest;
-                            hcdc->CmdLength = (uint8_t)req->wLength;
-
-                            USBD_CtlPrepareRx(pdev, (uint8_t*)(void*)hcdc->data,
-                                              req->wLength);
+                            ((USBD_CDC_ItfTypeDef*)
+                                 pdev->pUserData[interfaceIndex])
+                                ->Control(req->bRequest, (uint8_t*)(void*)req,
+                                          0U);
                         }
+                        break;
                     }
                     else
                     {
-                        ((USBD_CDC_ItfTypeDef*)pdev->pUserData[interfaceIndex])
-                            ->Control(req->bRequest, (uint8_t*)(void*)req, 0U);
+                        USBD_CtlError(pdev, req);
+                        ret = USBD_FAIL;
                     }
                     break;
+                    // default:
             }
 
             break;
@@ -820,7 +859,9 @@ static uint8_t USBD_CDC_Setup(USBD_HandleTypeDef* pdev,
                     {
                         len =
                             MIN(USBD_CUSTOM_HID_REPORT_DESC_SIZE, req->wLength);
-                        pbuf = ((USBD_CDC_ItfTypeDef*)pdev->pUserData[interfaceIndex])->pReport;
+                        pbuf = ((USBD_CDC_ItfTypeDef*)
+                                    pdev->pUserData[interfaceIndex])
+                                   ->pReport;
                     }
                     else
                     {
@@ -859,7 +900,7 @@ static uint8_t USBD_CDC_Setup(USBD_HandleTypeDef* pdev,
  */
 static uint8_t USBD_CDC_DataIn(USBD_HandleTypeDef* pdev, uint8_t epnum)
 {
-    int8_t interfaceIndex = USBD_CDC_GetInterfaceIndexByEpNum(pdev, epnum);
+    int8_t interfaceIndex = USBD_CDC_GetInterfaceIndexByEpNum(pdev, epnum|0x80);
     if (interfaceIndex < 0)
     {
         return USBD_FAIL;
@@ -869,7 +910,7 @@ static uint8_t USBD_CDC_DataIn(USBD_HandleTypeDef* pdev, uint8_t epnum)
         (USBD_CDC_HandleTypeDef*)pdev->pClassData[interfaceIndex];
     PCD_HandleTypeDef* hpcd = pdev->pData;
 
-    if (pdev->pClassData[interfaceIndex] != NULL)
+    if (interfaceIndex == 0 && pdev->pClassData[interfaceIndex] != NULL)
     {
         if ((pdev->ep_in[epnum].total_length > 0U) &&
             ((pdev->ep_in[epnum].total_length % hpcd->IN_ep[epnum].maxpacket) ==
@@ -886,6 +927,9 @@ static uint8_t USBD_CDC_DataIn(USBD_HandleTypeDef* pdev, uint8_t epnum)
             hcdc->TxState = 0U;
         }
         return USBD_OK;
+    }
+    else if (interfaceIndex==1 && hcdc!= NULL) {
+        ((USBD_CDC_HandleTypeDef*)pdev->pClassData[1])->state = CUSTOM_HID_IDLE;
     }
     else
     {
@@ -912,14 +956,16 @@ static uint8_t USBD_CDC_DataOut(USBD_HandleTypeDef* pdev, uint8_t epnum)
 
     /* Get the received data length */
     hcdc->RxLength = USBD_LL_GetRxDataSize(pdev, epnum);
-
+    if(interfaceIndex == 1){
+        USBD_LL_PrepareReceive(pdev, CUSTOM_HID_EPOUT_ADDR, hcdc->Report_buf,
+            USBD_CUSTOMHID_OUTREPORT_BUF_SIZE);
+    }
     /* USB data will be immediately processed, this allow next USB traffic being
     NAKed till the end of the application Xfer */
     if (pdev->pClassData[interfaceIndex] != NULL)
     {
         ((USBD_CDC_ItfTypeDef*)pdev->pUserData[interfaceIndex])
             ->Receive(hcdc->RxBuffer, &hcdc->RxLength);
-
         return USBD_OK;
     }
     else
@@ -937,20 +983,47 @@ static uint8_t USBD_CDC_DataOut(USBD_HandleTypeDef* pdev, uint8_t epnum)
 static uint8_t USBD_CDC_EP0_RxReady(USBD_HandleTypeDef* pdev, uint8_t epnum)
 {
     int8_t interfaceIndex = USBD_CDC_GetInterfaceIndexByEpNum(pdev, epnum);
-    if (interfaceIndex < 0)
+    if (epnum != 0 && interfaceIndex < 0)
     {
         return USBD_FAIL;
     }
-    USBD_CDC_HandleTypeDef* hcdc =
-        (USBD_CDC_HandleTypeDef*)pdev->pClassData[interfaceIndex];
-
-    if ((pdev->pUserData[interfaceIndex] != NULL) && (hcdc->CmdOpCode != 0xFFU))
+    else if (epnum == 0)
     {
-        ((USBD_CDC_ItfTypeDef*)pdev->pUserData[interfaceIndex])
-            ->Control(hcdc->CmdOpCode, (uint8_t*)(void*)hcdc->data,
-                      (uint16_t)hcdc->CmdLength);
-        hcdc->CmdOpCode = 0xFFU;
+        for (uint8_t i = 0; i < pdev->interfaceSize; i++)
+        {
+            USBD_CDC_HandleTypeDef* hcdc =
+                (USBD_CDC_HandleTypeDef*)pdev->pClassData[i];
+            if (hcdc->IsReportAvailable == 1U)
+            {
+                hcdc->IsReportAvailable = 0U;
+            }
+            if ((pdev->pUserData[i] != NULL) && (hcdc->CmdOpCode != 0xFFU))
+            {
+                ((USBD_CDC_ItfTypeDef*)pdev->pUserData[i])
+                    ->Control(hcdc->CmdOpCode, (uint8_t*)(void*)hcdc->data,
+                              (uint16_t)hcdc->CmdLength);
+                hcdc->CmdOpCode = 0xFFU;
+            }
+        }
     }
+    else
+    {
+        USBD_CDC_HandleTypeDef* hcdc =
+            (USBD_CDC_HandleTypeDef*)pdev->pClassData[interfaceIndex];
+        if (hcdc->IsReportAvailable == 1U)
+        {
+            hcdc->IsReportAvailable = 0U;
+        }
+        if ((pdev->pUserData[interfaceIndex] != NULL) &&
+            (hcdc->CmdOpCode != 0xFFU))
+        {
+            ((USBD_CDC_ItfTypeDef*)pdev->pUserData[interfaceIndex])
+                ->Control(hcdc->CmdOpCode, (uint8_t*)(void*)hcdc->data,
+                          (uint16_t)hcdc->CmdLength);
+            hcdc->CmdOpCode = 0xFFU;
+        }
+    }
+
     return USBD_OK;
 }
 
@@ -1147,7 +1220,7 @@ uint8_t USBD_CDC_ReceivePacket(USBD_HandleTypeDef* pdev)
 int8_t USBD_CDC_GetInterfaceIndexByEpNum(USBD_HandleTypeDef* pdev,
                                          uint8_t ep_addr)
 {
-    ep_addr &= EP_ADDR_MSK;
+    // ep_addr &= EP_ADDR_MSK;
     for (int8_t i = 0; i < pdev->interfaceSize; i++)
     {
         USBD_CDC_ItfTypeDef* fops = pdev->pUserData[i];
@@ -1255,6 +1328,36 @@ int8_t CDC_Parse_Endpoint(USBD_CDC_ItfTypeDef* fops, uint8_t* endpointData)
     if (fops->endpointSize >= INTERFACE_MAX_EP_NUM) return USBD_FAIL;
     fops->interfaceEpAddr[fops->endpointSize++] = endpointData[2];
     fops->interfaceEpAttr[fops->endpointSize - 1] = endpointData[3];
+    return USBD_OK;
+}
+
+uint8_t USBD_CUSTOM_HID_SendReport(USBD_HandleTypeDef* pdev, uint8_t* report,
+                                   uint16_t len)
+{
+    // 通过查找HID端点来获取接口索引，而不是硬编码[1]
+    int8_t interfaceIndex = USBD_CDC_GetInterfaceIndexByEpNum(pdev, CUSTOM_HID_EPIN_ADDR);
+    if (interfaceIndex < 0)
+    {
+        return USBD_FAIL;
+    }
+    
+    USBD_CDC_HandleTypeDef* hhid = (USBD_CDC_HandleTypeDef*)pdev->pClassData[interfaceIndex];
+    if (hhid == NULL)
+    {
+        return USBD_FAIL;
+    }
+    if (pdev->dev_state == USBD_STATE_CONFIGURED)
+    {
+        if (hhid->state == CUSTOM_HID_IDLE) 
+        {
+            hhid->state = CUSTOM_HID_BUSY;
+            USBD_LL_Transmit(pdev, CUSTOM_HID_EPIN_ADDR, report, len);
+        }
+        else
+        {
+            return USBD_BUSY;
+        }
+    }
     return USBD_OK;
 }
 /**

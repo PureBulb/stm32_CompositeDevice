@@ -18,7 +18,10 @@
 /* USER CODE END Header */
 /* Includes ------------------------------------------------------------------*/
 #include "main.h"
+#include "stm32f1xx_hal.h"
 #include "usb_device.h"
+#include "usbd_cdc.h"
+#include "usbd_cdc_if.h"
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
@@ -49,6 +52,8 @@
 /* Private function prototypes -----------------------------------------------*/
 void SystemClock_Config(void);
 static void MX_GPIO_Init(void);
+
+extern USBD_HandleTypeDef hUsbDeviceFS;
 /* USER CODE BEGIN PFP */
 
 /* USER CODE END PFP */
@@ -91,13 +96,17 @@ int main(void)
   /* USER CODE BEGIN 2 */
 
   /* USER CODE END 2 */
-
+  HAL_Delay(20000);
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
   while (1)
   {
     /* USER CODE END WHILE */
-
+    char buf[15] = "hello world";
+    unsigned char sendbuf[6]={0xFF,0x00,0x80,0x80,0x80,0x80};
+    // CDC_Transmit_FS(buf, 15);
+    USBD_CUSTOM_HID_SendReport(&hUsbDeviceFS,sendbuf,6);
+    HAL_Delay(1000);
     /* USER CODE BEGIN 3 */
   }
   /* USER CODE END 3 */
